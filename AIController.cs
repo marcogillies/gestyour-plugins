@@ -3,6 +3,18 @@ using UnityEditor;
 using System.Collections.Generic;
 using System;
 
+
+/*
+ *  A class for representing continuous parameters
+ *  that can be altered via the AI
+ */
+[System.Serializable]
+public class ContinuousParameter
+{
+	public String name;
+	public float value;
+}
+
 /*
  *  A class for representing an individual posture
  */ 
@@ -17,6 +29,7 @@ public class MotionDataItem
 	public float lastProbability;
 	public Texture2D tex;
 	public Texture2D selectedTex;
+	public ContinuousParameter [] parameterValues;
 }
 
 /*
@@ -40,6 +53,12 @@ public class AIController : MonoBehaviour {
 	// the largest probability in the last 
 	// classification calculation
 	private float maxProbability;
+	
+	public ContinuousParameter [] parameters;
+	
+	
+	// the name to use for creating a new parameter
+	public string newParameterName = "";
 
 	
 	// objects that will receive a 
@@ -155,6 +174,18 @@ public class AIController : MonoBehaviour {
 			}
 		}
 
+	}
+	
+	public void AddParameter(String name)
+	{
+		// resize the DataItems array, adding a new item at the end
+		Array.Resize(ref parameters, parameters.Length+1);
+		parameters[parameters.Length-1]  = new ContinuousParameter{ name = name, value = 0.0f};
+		for (int i = 0; i < m_DataItems.Length; i++) 
+		{
+			Array.Resize(ref m_DataItems[i].parameterValues, parameters.Length);
+			m_DataItems[i].parameterValues[parameters.Length-1] = new ContinuousParameter{ name = name, value = -1.0f};
+		}
 	}
 
 	// relabel a given posture
@@ -383,6 +414,16 @@ public class AIController : MonoBehaviour {
 		m_DataItems = newDataItems;
 		m_DataItems[m_DataItems.Length-1]  = new MotionDataItem{ label = label, clip = clip, time = time, labelIndex = labelId, data = data, lastProbability = 0, tex=tex, selectedTex = selectedTex};
 
+		
+		m_DataItems [m_DataItems.Length - 1].parameterValues = new ContinuousParameter[parameters.Length];
+		for (int i = 0; i < m_DataItems [m_DataItems.Length - 1].parameterValues.Length; i++) 
+		{
+			m_DataItems [m_DataItems.Length - 1].parameterValues[i] = new ContinuousParameter();
+			m_DataItems [m_DataItems.Length - 1].parameterValues[i].name = parameters[i].name;
+			m_DataItems [m_DataItems.Length - 1].parameterValues[i].value = parameters[i].value;
+		}
+
+
 		// return the id of the posture
 		int id = m_DataItems.Length-1;
 		return id;
@@ -520,6 +561,30 @@ public class AIController : MonoBehaviour {
 				}
 				
 			} 
+		}
+		if (new_classification != "nothing")
+		{
+			for(int i = 0; i < parameters.Length; i++)
+			{
+				float totalWeight = 0.0f;
+				float parameterVal = 0.0f;
+				for(int j = 0; j < m_DataItems.Length; j++)
+				{
+					if (m_DataItems[j].label == new_classification)
+					{
+						totalWeight += m_DataItems[j].lastProbability;
+						parameterVal += m_DataItems[j].lastProbability*m_DataItems[j].parameterValues[i].value;
+					}
+				}
+				if(totalWeight > 1.0e-15)
+				{
+					parameters[i].value = parameterVal/totalWeight;
+					for (int j = 0; j < listeners.Length; j++)
+					{
+						listeners[j].SendMessage(parameters[i].name, parameters[i].value);
+					}
+				}
+			}
 		}
 		return classification;
 	}
