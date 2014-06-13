@@ -364,13 +364,35 @@ public class AIController : MonoBehaviour {
 			// get the rotation value and turn it into x,y,z 
 			// components (Euler Angles)
 			Quaternion q = feature.localRotation;
+			float mag = (float)Math.Sqrt(q.x*q.x + q.y*q.y + q.z*q.z + q.w*q.w);
+			q.x /= mag;
+			q.y /= mag;
+			q.z /= mag;
+			q.w /= mag;
 			Vector3 eulers = q.eulerAngles;
 			data[j] = processAngle(eulers.x);
+			// check for NaNs because I seem to get them from Quaternion.eulerAngles
+			// (should really use quaternion distance when calculating the gaussians)
+			if (Double.IsInfinity (data[j]) || Double.IsNaN (data[j])) 
+			{
+				data[j] = 0.0f;
+			}
 			j++;
 			data[j] = processAngle(eulers.y);
+			// check for NaNs because I seem to get them from Quaternion.eulerAngles
+			if (Double.IsInfinity (data[j]) || Double.IsNaN (data[j])) 
+			{
+				data[j] = 0.0f;
+			}
 			j++;
 			data[j] = processAngle(eulers.z);
+			// check for NaNs because I seem to get them from Quaternion.eulerAngles
+			if (Double.IsInfinity (data[j]) || Double.IsNaN (data[j])) 
+			{
+				data[j] = 0.0f;
+			}
 			j++;
+			//Debug.Log ("from live " + feature.gameObject.name + " " + data[j-2] + " " + data[j-1] + " " + data[j] + " " + eulers + " " + q);
 			//if(useVelocityFeatures)
 			//{
 			//	throw new System.Exception("velocity features in real time have not been implemented");
@@ -470,12 +492,18 @@ public class AIController : MonoBehaviour {
 		float product = 0.0f;
 		for (int i = 0; i < data.Length; i++)
 		{
+			//Debug.Log ("data " + data[i] + " " + gaussian.data[i] + " " + defaultSigma);
 			product += (data[i]-gaussian.data[i]) * (data[i]-gaussian.data[i])/defaultSigma;
 		}
+		//Debug.Log ("product " + product);
 		float p = (float)(coef*Math.Exp(-0.5f*product));
 		
-		if (Double.IsInfinity(p) || Double.IsNaN(p))
-			throw new Exception("Calculated probability is NaN");
+		if (Double.IsInfinity (p) || Double.IsNaN (p)) 
+		{
+			Debug.LogWarning("NaN probabilitiy " + p + " " + gaussian.label + " " + gaussian.time);
+			return 0.0f;
+			//throw new Exception ("Calculated probability is NaN");
+		}
 
 		// save the last probability 
 		// (used for scaling the thumbnails)
